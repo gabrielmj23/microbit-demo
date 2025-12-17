@@ -8,6 +8,7 @@ export class BluetoothConnection implements MicrobitConnection {
   private rxChar: BluetoothRemoteGATTCharacteristic | null = null; // Para leer
   private txChar: BluetoothRemoteGATTCharacteristic | null = null; // Para escribir
   private messageCallback: MessageHandler | null = null;
+  private buffer: string = "";
 
   // UUIDs oficiales del servicio UART de Nordic (usado por micro:bit)
   private readonly UART_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
@@ -37,10 +38,7 @@ export class BluetoothConnection implements MicrobitConnection {
         const value = (event.target as BluetoothRemoteGATTCharacteristic).value;
         const decoder = new TextDecoder();
         const text = decoder.decode(value);
-        // Bluetooth suele enviar paquetes completos, pero idealmente
-        // deberías usar el mismo buffer que en Serial.
-        // Aquí simplificamos asumiendo mensajes cortos:
-        if (this.messageCallback) this.messageCallback(text.trim());
+        this.handleDataChunk(text);
       }
     );
 
@@ -62,5 +60,17 @@ export class BluetoothConnection implements MicrobitConnection {
 
   onMessage(callback: MessageHandler): void {
     this.messageCallback = callback;
+  }
+
+  private handleDataChunk(chunk: string) {
+    this.buffer += chunk;
+    const lines = this.buffer.split("\n");
+    this.buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (this.messageCallback && line.trim()) {
+        this.messageCallback(line.trim());
+      }
+    }
   }
 }
